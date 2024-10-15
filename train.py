@@ -149,6 +149,8 @@ def _train(model: SmoothmaxRelationalNeuralNetwork,
     print('Creating datasets...')
     train_dataset = [_sample_batch(train_states, batch_size, device) for _ in range(10_000)]
     validation_dataset = [_sample_batch(validation_states, batch_size, device) for _ in range(1_000)]
+    # train_dataset = [_sample_batch(train_states, batch_size, device) for _ in range(500)]
+    # validation_dataset = [_sample_batch(validation_states, batch_size, device) for _ in range(100)]
     # Training loop
     best_validation_loss = None  # Track the best validation loss to detect overfitting.
     print('Training model...')
@@ -185,13 +187,25 @@ def _train(model: SmoothmaxRelationalNeuralNetwork,
         with torch.no_grad():
             total_square_error = torch.zeros([1], dtype=torch.float, device=device)
             total_absolute_error = torch.zeros([1], dtype=torch.float, device=device)
+            total_masked_square_error = torch.zeros([1], dtype=torch.float, device=device)
+            total_masked_absolute_error = torch.zeros([1], dtype=torch.float, device=device)
+            
             for index, (relations, sizes, targets) in enumerate(validation_dataset):
-                value_predictions = model.forward(relations, sizes).view(-1)
+                value_predictions, deadend_predictions = model.forward(relations, sizes)
+                value_predictions = value_predictions.view(-1)
                 total_square_error += (value_predictions - targets).square().sum()
                 total_absolute_error += (value_predictions - targets).abs().sum()
+                value_mask = targets.ge(0)
+                total_masked_square_error += ((value_predictions - targets).square() * value_mask).sum()
+                total_masked_absolute_error += ((value_predictions - targets).abs() * value_mask).sum()
             total_samples = len(validation_dataset) * batch_size
+            
             validation_loss = total_absolute_error / total_samples
             print(f'[{epoch + 1}/{num_epochs}] Validation loss: {validation_loss.item():.4f}')
+
+            masked_validation_loss = total_masked_absolute_error / total_samples
+            print(f'[{epoch + 1}/{num_epochs}] Masked validation loss: {masked_validation_loss.item():.4f}')
+
             save_checkpoint(model, optimizer, 'latest.pth')
             if (best_validation_loss is None) or (validation_loss < best_validation_loss):
                 best_validation_loss = validation_loss

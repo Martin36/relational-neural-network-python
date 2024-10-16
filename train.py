@@ -35,7 +35,9 @@ class StateSampler:
         sampled_state_space = self._state_spaces[state_space_index]
         max_goal_distance = self._max_distances[state_space_index]
         has_deadends = self._has_deadends[state_space_index]
-        goal_distance = random.randint(-1 if has_deadends else 0, max_goal_distance)
+        # goal_distance = random.randint(-1 if has_deadends else 0, max_goal_distance)
+        # TODO: THIS IS ONLY VALID FOR BLOCKS
+        goal_distance = -1 if has_deadends else random.randint(0, max_goal_distance)
         if goal_distance < 0:
             sampled_state_index = sampled_state_space.sample_state_with_goal_distance(self._deadend_distance)
         else:
@@ -74,7 +76,7 @@ def _generate_state_spaces(domain_path: str, problem_paths: List[str]) -> List[m
     state_spaces: List[mm.StateSpace] = []
     for problem_path in problem_paths:
         print(f'> Expanding: {problem_path}')
-        state_space = mm.StateSpace.create(domain_path, problem_path, mm.StateSpaceOptions(max_num_states=1_000_000, timeout_ms=60_000))
+        state_space = mm.StateSpace.create(domain_path, problem_path, mm.StateSpaceOptions(max_num_states=1_000_000, timeout_ms=60_000, remove_if_unsolvable=False))
         if state_space is not None:
             state_spaces.append(state_space)
             print(f'- # States: {state_space.get_num_states()}')

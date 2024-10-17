@@ -230,7 +230,7 @@ def _train(model: SmoothmaxRelationalNeuralNetwork,
             
             if logger:
                 logger.log_metrics({
-                    "val_loss": validation_loss.item(),
+                    "val_loss": masked_validation_loss.item(),
                     # "masked_validation_loss": masked_validation_loss.item(),
                 },step=step, epoch=epoch)
 

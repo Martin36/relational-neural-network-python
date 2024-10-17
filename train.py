@@ -1,9 +1,12 @@
+import comet_ml
 import argparse
+import os
 import pymimir as mm
 import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
 
 from pathlib import Path
 from relnn_max import SmoothmaxRelationalNeuralNetwork
@@ -155,10 +158,20 @@ def _train(model: SmoothmaxRelationalNeuralNetwork,
     # validation_dataset = [_sample_batch(validation_states, batch_size, device) for _ in range(100)]
     # Training loop
     best_validation_loss = None  # Track the best validation loss to detect overfitting.
+    
+    logger = None
+    if os.environ.get("COMET_API_KEY"):
+        logger = comet_ml.Experiment(
+            api_key=os.environ["COMET_API_KEY"],
+            project_name="relational-nn",
+        )
+
     print('Training model...')
+    step = 0
     for epoch in range(0, num_epochs):
         # Train step
         for index, (relations, sizes, targets) in enumerate(train_dataset):
+            step += 1
             # Forward pass
             value_predictions, deadend_predictions = model.forward(relations, sizes)
             # The value loss has two parts: a standard absolute error loss
@@ -185,6 +198,13 @@ def _train(model: SmoothmaxRelationalNeuralNetwork,
             # Print loss every 100 steps (printing every step forces synchronization with CPU)
             if (index + 1) % 100 == 0:
                 print(f'[{epoch + 1}/{num_epochs}; {index + 1}/{len(train_dataset)}] Loss: {total_loss.item():.4f}')
+                if logger:
+                    logger.log_metrics({
+                        "loss": total_loss.item(),
+                        # "value_loss": value_loss.item(),
+                        # "distance_loss": distance_loss.item(),
+                        # "deadend_loss": deadend_loss.item(),
+                    }, step=step, epoch=epoch)
         # Validation step
         with torch.no_grad():
             total_square_error = torch.zeros([1], dtype=torch.float, device=device)
@@ -207,6 +227,12 @@ def _train(model: SmoothmaxRelationalNeuralNetwork,
 
             masked_validation_loss = total_masked_absolute_error / total_samples
             print(f'[{epoch + 1}/{num_epochs}] Masked validation loss: {masked_validation_loss.item():.4f}')
+            
+            if logger:
+                logger.log_metrics({
+                    "val_loss": validation_loss.item(),
+                    # "masked_validation_loss": masked_validation_loss.item(),
+                },step=step, epoch=epoch)
 
             save_checkpoint(model, optimizer, 'latest.pth')
             if (best_validation_loss is None) or (validation_loss < best_validation_loss):
